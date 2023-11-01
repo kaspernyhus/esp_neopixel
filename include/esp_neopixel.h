@@ -10,9 +10,8 @@
  */
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
-
-#define LED_MAX_INTENSITY 16
 
 typedef enum {
     NEOPIXEL_WHITE,
@@ -26,6 +25,7 @@ typedef enum {
 typedef struct {
     uint8_t rmt_channel;
     uint8_t gpio;
+    bool invert;
 } esp_neopixel_config_t;
 
 /**
@@ -52,7 +52,7 @@ void esp_neopixel_off(void);
  *
  * @param color
  */
-void esp_neopixel_set_color(esp_neopixel_color_t color);
+void esp_neopixel_set_color(esp_neopixel_color_t color, uint8_t intensity);
 
 /**
  * @brief Set custom RGB color

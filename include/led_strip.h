@@ -17,6 +17,7 @@
 extern "C" {
 #endif
 
+#include <stdbool.h>
 #include "esp_err.h"
 
 /**
@@ -130,7 +131,18 @@ led_strip_t* led_strip_new_rmt_ws2812(const led_strip_config_t* config);
  * @return
  *      LED strip instance or NULL
  */
-led_strip_t* led_strip_init(uint8_t channel, uint8_t gpio, uint16_t led_num);
+led_strip_t* led_strip_init_ws2812(uint8_t channel, uint8_t gpio, uint16_t led_num, bool invert);
+
+/**
+ * @brief Init the RMT peripheral and LED strip configuration.
+ *
+ * @param[in] channel: RMT peripheral channel number.
+ * @param[in] gpio: GPIO number for the RMT data output.
+ * @param[in] led_num: number of addressable LEDs.
+ * @return
+ *      LED strip instance or NULL
+ */
+led_strip_t* led_strip_init_liteon(uint8_t channel, uint8_t gpio, uint16_t led_num, bool invert);
 
 /**
  * @brief Denit the RMT peripheral.

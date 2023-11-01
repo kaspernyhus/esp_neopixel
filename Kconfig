@@ -1,0 +1,13 @@
+menu "ESP Neopixel"
+    choice ESP_NEOPIXEL_TYPE
+        prompt "Neopixel type"
+        default WS2812
+        help
+            Choose neopixel type (ws2812 / liteon)
+        config WS2812
+            bool "ws2812"
+        config LITE_ON
+            bool "Lite-On"
+    endchoice
+
+endmenu # ESP Neopixel

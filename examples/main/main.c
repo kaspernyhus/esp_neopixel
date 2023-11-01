@@ -28,11 +28,15 @@ void app_main(void)
 
     esp_neopixel_config_t cfg = {
         .rmt_channel = 0,
-        .gpio = 15
+        .gpio = 15,
+        .invert = true
     };
     esp_neopixel_init(&cfg);
 
     while (1) {
+        esp_neopixel_set_color(NEOPIXEL_GREEN, 32u);
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        esp_neopixel_off();
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }

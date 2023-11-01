@@ -108,6 +108,21 @@ err:
     return ret;
 }
 
+static esp_err_t liteon_set_pixel(led_strip_t* strip, uint32_t index, uint32_t red, uint32_t green, uint32_t blue)
+{
+    esp_err_t ret = ESP_OK;
+    ws2812_t* ws2812 = __containerof(strip, ws2812_t, parent);
+    STRIP_CHECK(index < ws2812->strip_len, "index out of the maximum number of leds", err, ESP_ERR_INVALID_ARG);
+    uint32_t start = index * 3;
+    // In thr order of GRB
+    ws2812->buffer[start + 0] = red & 0xFF;
+    ws2812->buffer[start + 1] = green & 0xFF;
+    ws2812->buffer[start + 2] = blue & 0xFF;
+    return ESP_OK;
+err:
+    return ret;
+}
+
 static esp_err_t ws2812_refresh(led_strip_t* strip, uint32_t timeout_ms)
 {
     esp_err_t ret = ESP_OK;
@@ -170,11 +185,50 @@ err:
     return ret;
 }
 
-led_strip_t* led_strip_init(uint8_t channel, uint8_t gpio, uint16_t led_num)
+led_strip_t* led_strip_new_rmt_liteon(const led_strip_config_t* config)
+{
+    led_strip_t* ret = NULL;
+    STRIP_CHECK(config, "configuration can't be null", err, NULL);
+
+    // 24 bits per led
+    uint32_t ws2812_size = sizeof(ws2812_t) + config->max_leds * 3;
+    ws2812_t* ws2812 = calloc(1, ws2812_size);
+    STRIP_CHECK(ws2812, "request memory for ws2812 failed", err, NULL);
+
+    uint32_t counter_clk_hz = 0;
+    STRIP_CHECK(rmt_get_counter_clock((rmt_channel_t)config->dev, &counter_clk_hz) == ESP_OK,
+        "get rmt counter clock failed", err, NULL);
+    // ns -> ticks
+    float ratio = (float)counter_clk_hz / 1e9;
+    ws2812_t0h_ticks = (uint32_t)(ratio * WS2812_T0H_NS);
+    ws2812_t0l_ticks = (uint32_t)(ratio * WS2812_T0L_NS);
+    ws2812_t1h_ticks = (uint32_t)(ratio * WS2812_T1H_NS);
+    ws2812_t1l_ticks = (uint32_t)(ratio * WS2812_T1L_NS);
+
+    // set ws2812 to rmt adapter
+    rmt_translator_init((rmt_channel_t)config->dev, ws2812_rmt_adapter);
+
+    ws2812->rmt_channel = (rmt_channel_t)config->dev;
+    ws2812->strip_len = config->max_leds;
+
+    ws2812->parent.set_pixel = liteon_set_pixel;
+    ws2812->parent.refresh = ws2812_refresh;
+    ws2812->parent.clear = ws2812_clear;
+    ws2812->parent.del = ws2812_del;
+
+    return &ws2812->parent;
+err:
+    return ret;
+}
+
+led_strip_t* led_strip_init_ws2812(uint8_t channel, uint8_t gpio, uint16_t led_num, bool invert)
 {
     static led_strip_t* pStrip;
 
     rmt_config_t config = RMT_DEFAULT_CONFIG_TX(gpio, channel);
+    if (invert) {
+        config.flags |= RMT_CHANNEL_FLAGS_INVERT_SIG;
+    }
     // set counter clock to 40MHz
     config.clk_div = 2;
 
@@ -188,6 +242,36 @@ led_strip_t* led_strip_init(uint8_t channel, uint8_t gpio, uint16_t led_num)
 
     if (!pStrip) {
         ESP_LOGE(TAG, "install WS2812 driver failed");
+        return NULL;
+    }
+
+    // Clear LED strip (turn off all LEDs)
+    ESP_ERROR_CHECK(pStrip->clear(pStrip, 100));
+
+    return pStrip;
+}
+
+led_strip_t* led_strip_init_liteon(uint8_t channel, uint8_t gpio, uint16_t led_num, bool invert)
+{
+    static led_strip_t* pStrip;
+
+    rmt_config_t config = RMT_DEFAULT_CONFIG_TX(gpio, channel);
+    if (invert) {
+        config.flags |= RMT_CHANNEL_FLAGS_INVERT_SIG;
+    }
+    // set counter clock to 40MHz
+    config.clk_div = 2;
+
+    ESP_ERROR_CHECK(rmt_config(&config));
+    ESP_ERROR_CHECK(rmt_driver_install(config.channel, 0, 0));
+
+    // install ws2812 driver
+    led_strip_config_t strip_config = LED_STRIP_DEFAULT_CONFIG(led_num, (led_strip_dev_t)config.channel);
+
+    pStrip = led_strip_new_rmt_liteon(&strip_config);
+
+    if (!pStrip) {
+        ESP_LOGE(TAG, "install LiteOn driver failed");
         return NULL;
     }
 
